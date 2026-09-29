@@ -47,39 +47,6 @@ export function HandTracker({ onFrame }: Props) {
     };
   }, []);
 
-  const tick = () => {
-    const landmarker = landmarkerRef.current;
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    if (!landmarker || !video || !canvas) return;
-
-    const now = performance.now();
-    if (video.readyState >= 2 && video.currentTime !== lastVideoTimeRef.current) {
-      lastVideoTimeRef.current = video.currentTime;
-      const result = landmarker.detectForVideo(video, now);
-      const raw = result.landmarks?.[0] as HandPoint[] | undefined;
-
-      if (raw?.length === 21) {
-        drawHand(canvas, raw);
-        const snapshot = engineRef.current.update(raw, now);
-        setGesture(snapshot.gesture);
-        onFrameRef.current?.(raw, snapshot, now);
-      } else {
-        const ctx = canvas.getContext("2d");
-        ctx?.clearRect(0, 0, canvas.width, canvas.height);
-        setGesture("SEM MÃO");
-      }
-
-      fpsRef.current.frames += 1;
-      if (now - fpsRef.current.at >= 1000) {
-        setFps(fpsRef.current.frames);
-        fpsRef.current = { at: now, frames: 0 };
-      }
-    }
-
-    requestRef.current = requestAnimationFrame(tick);
-  };
-
   const activateCamera = async () => {
     if (status === "loading" || status === "ready") return;
 
@@ -132,6 +99,40 @@ export function HandTracker({ onFrame }: Props) {
       fpsRef.current = { at: performance.now(), frames: 0 };
       setStatus("ready");
       setMessage("Câmera pronta");
+
+      const tick = () => {
+        const landmarker = landmarkerRef.current;
+        const currentVideo = videoRef.current;
+        const canvas = canvasRef.current;
+        if (!landmarker || !currentVideo || !canvas) return;
+
+        const now = performance.now();
+        if (currentVideo.readyState >= 2 && currentVideo.currentTime !== lastVideoTimeRef.current) {
+          lastVideoTimeRef.current = currentVideo.currentTime;
+          const result = landmarker.detectForVideo(currentVideo, now);
+          const raw = result.landmarks?.[0] as HandPoint[] | undefined;
+
+          if (raw?.length === 21) {
+            drawHand(canvas, raw);
+            const snapshot = engineRef.current.update(raw, now);
+            setGesture(snapshot.gesture);
+            onFrameRef.current?.(raw, snapshot, now);
+          } else {
+            const ctx = canvas.getContext("2d");
+            ctx?.clearRect(0, 0, canvas.width, canvas.height);
+            setGesture("SEM MÃO");
+          }
+
+          fpsRef.current.frames += 1;
+          if (now - fpsRef.current.at >= 1000) {
+            setFps(fpsRef.current.frames);
+            fpsRef.current = { at: now, frames: 0 };
+          }
+        }
+
+        requestRef.current = requestAnimationFrame(tick);
+      };
+
       tick();
     } catch (error) {
       streamRef.current?.getTracks().forEach((track) => track.stop());
