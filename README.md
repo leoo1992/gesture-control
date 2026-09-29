@@ -98,7 +98,7 @@ docker run --rm -p 3000:3000 gesture-control
 
 ## Deploy
 
-O frontend Next.js e o FastAPI podem ser hospedados no mesmo projeto Vercel. O rastreamento MediaPipe roda no dispositivo do usuário. A extensão é carregada separadamente no navegador desktop.
+O frontend Next.js e o FastAPI podem ser hospedados no mesmo projeto Vercel. O rastreamento MediaPipe Hands roda no dispositivo do usuário. A extensão é carregada separadamente no navegador desktop.
 
 ## Privacidade
 

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { HandLandmarker } from "@mediapipe/tasks-vision";
 import { GestureEngine, type GestureSnapshot } from "@/lib/gesture-engine";
 import { drawHand } from "@/lib/hand-drawing";
 import type { HandPoint } from "@/lib/protocol";
@@ -13,14 +12,101 @@ type Props = {
 type CameraStatus = "idle" | "requesting" | "streaming" | "error";
 type TrackingStatus = "idle" | "loading" | "ready" | "error";
 
-const MODEL =
-  "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
-const WASM =
-  "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm";
+type LegacyHandsResults = {
+  multiHandLandmarks?: Array<Array<HandPoint>>;
+};
 
-const DETECTION_CONFIDENCE = 0.45;
-const PRESENCE_CONFIDENCE = 0.45;
-const TRACKING_CONFIDENCE = 0.4;
+type LegacyHandsInstance = {
+  setOptions: (options: {
+    selfieMode?: boolean;
+    maxNumHands?: number;
+    modelComplexity?: number;
+    minDetectionConfidence?: number;
+    minTrackingConfidence?: number;
+  }) => void;
+  onResults: (callback: (results: LegacyHandsResults) => void) => void;
+  send: (input: { image: HTMLVideoElement }) => Promise<void>;
+  close?: () => Promise<void> | void;
+};
+
+type LegacyHandsConstructor = new (options: {
+  locateFile: (file: string) => string;
+}) => LegacyHandsInstance;
+
+declare global {
+  interface Window {
+    Hands?: LegacyHandsConstructor;
+  }
+}
+
+const HANDS_SCRIPT = "/mediapipe/hands/hands.js";
+const HANDS_ASSET_ROOT = "/mediapipe/hands";
+const DETECTION_CONFIDENCE = 0.5;
+const TRACKING_CONFIDENCE = 0.45;
+
+let handsScriptPromise: Promise<void> | null = null;
+
+function loadHandsScript() {
+  if (typeof window !== "undefined" && window.Hands) {
+    return Promise.resolve();
+  }
+
+  if (handsScriptPromise) return handsScriptPromise;
+
+  handsScriptPromise = new Promise<void>((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>(
+      `script[src="${HANDS_SCRIPT}"]`,
+    );
+
+    if (existing) {
+      if (window.Hands) {
+        resolve();
+        return;
+      }
+
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener(
+        "error",
+        () => reject(new Error("Falha ao carregar hands.js.")),
+        { once: true },
+      );
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = HANDS_SCRIPT;
+    script.async = true;
+    script.crossOrigin = "anonymous";
+
+    const timeout = window.setTimeout(() => {
+      reject(new Error("Tempo esgotado ao carregar o detector de mão."));
+    }, 15000);
+
+    script.onload = () => {
+      window.clearTimeout(timeout);
+
+      if (!window.Hands) {
+        reject(
+          new Error(
+            "hands.js foi carregado, mas o detector não ficou disponível.",
+          ),
+        );
+        return;
+      }
+
+      resolve();
+    };
+
+    script.onerror = () => {
+      window.clearTimeout(timeout);
+      reject(new Error("Não foi possível carregar o detector de mão."));
+    };
+
+    document.head.appendChild(script);
+  });
+
+  return handsScriptPromise;
+}
 
 const gestureName = (gesture: string) =>
   ({
@@ -34,11 +120,11 @@ export function HandTracker({ onFrame }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const landmarkerRef = useRef<HandLandmarker | null>(null);
+  const handsRef = useRef<LegacyHandsInstance | null>(null);
   const engineRef = useRef(new GestureEngine());
   const requestRef = useRef<number | null>(null);
+  const processingRef = useRef(false);
   const onFrameRef = useRef(onFrame);
-  const lastVideoTimeRef = useRef(-1);
   const lastDetectAtRef = useRef(0);
   const fpsRef = useRef({ at: 0, frames: 0 });
 
@@ -62,7 +148,8 @@ export function HandTracker({ onFrame }: Props) {
     return () => {
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
       streamRef.current?.getTracks().forEach((track) => track.stop());
-      landmarkerRef.current?.close();
+      void handsRef.current?.close?.();
+      handsRef.current = null;
     };
   }, []);
 
@@ -73,66 +160,76 @@ export function HandTracker({ onFrame }: Props) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   };
 
+  const handleResults = (results: LegacyHandsResults) => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
+
+    const now = performance.now();
+    const raw = results.multiHandLandmarks?.[0];
+
+    if (raw?.length === 21) {
+      setHandDetected(true);
+
+      drawHand(canvas, raw, {
+        lineColor: "#00ff3b",
+        pointColor: "#ff2525",
+        lineWidth: 3,
+        pointRadius: 4.2,
+        sourceWidth: video.videoWidth,
+        sourceHeight: video.videoHeight,
+        fit: "cover",
+      });
+
+      const snapshot = engineRef.current.update(raw, now);
+      setGesture(snapshot.gesture);
+      onFrameRef.current?.(raw, snapshot, now);
+    } else {
+      setHandDetected(false);
+      setGesture("SEM MÃO");
+      clearSkeleton();
+    }
+
+    fpsRef.current.frames += 1;
+    if (now - fpsRef.current.at >= 1000) {
+      setFps(fpsRef.current.frames);
+      fpsRef.current = { at: now, frames: 0 };
+    }
+  };
+
   const startTrackingLoop = () => {
     if (requestRef.current) cancelAnimationFrame(requestRef.current);
 
     const tick = () => {
-      const landmarker = landmarkerRef.current;
+      const hands = handsRef.current;
       const video = videoRef.current;
-      const canvas = canvasRef.current;
 
-      if (!landmarker || !video || !canvas) return;
+      if (!hands || !video) return;
 
       const now = performance.now();
 
       if (
-        now - lastDetectAtRef.current >= 30 &&
         video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
-        video.currentTime !== lastVideoTimeRef.current
+        now - lastDetectAtRef.current >= 33 &&
+        !processingRef.current
       ) {
         lastDetectAtRef.current = now;
-        lastVideoTimeRef.current = video.currentTime;
+        processingRef.current = true;
 
-        try {
-          const result = landmarker.detectForVideo(video, now);
-          const raw = result.landmarks?.[0] as HandPoint[] | undefined;
+        void hands
+          .send({ image: video })
+          .catch((error: unknown) => {
+            const detail =
+              error instanceof Error ? error.message : String(error);
 
-          if (raw?.length === 21) {
-            setHandDetected(true);
-            drawHand(canvas, raw, {
-              lineColor: "#00ff3b",
-              pointColor: "#ff2525",
-              lineWidth: 2.7,
-              pointRadius: 4,
-              sourceWidth: video.videoWidth,
-              sourceHeight: video.videoHeight,
-              fit: "cover",
-            });
-
-            const snapshot = engineRef.current.update(raw, now);
-            setGesture(snapshot.gesture);
-            onFrameRef.current?.(raw, snapshot, now);
-          } else {
-            setHandDetected(false);
-            clearSkeleton();
-            setGesture("SEM MÃO");
-          }
-
-          fpsRef.current.frames += 1;
-          if (now - fpsRef.current.at >= 1000) {
-            setFps(fpsRef.current.frames);
-            fpsRef.current = { at: now, frames: 0 };
-          }
-        } catch {
-          setHandDetected(false);
-          clearSkeleton();
-          landmarkerRef.current = null;
-          setTrackingStatus("error");
-          setTrackingMessage(
-            "O detector parou. A câmera continua ativa; toque para reiniciar o reconhecimento.",
-          );
-          return;
-        }
+            console.error("Falha durante o rastreamento da mão:", error);
+            setTrackingError(detail);
+            setTrackingStatus("error");
+            setTrackingMessage("O detector parou durante o rastreamento.");
+          })
+          .finally(() => {
+            processingRef.current = false;
+          });
       }
 
       requestRef.current = requestAnimationFrame(tick);
@@ -141,62 +238,63 @@ export function HandTracker({ onFrame }: Props) {
     requestRef.current = requestAnimationFrame(tick);
   };
 
-  const createLandmarker = async (
-    delegate: "CPU" | "GPU",
-    HandLandmarkerClass: typeof import("@mediapipe/tasks-vision").HandLandmarker,
-    vision: Awaited<
-      ReturnType<typeof import("@mediapipe/tasks-vision").FilesetResolver.forVisionTasks>
-    >,
-  ) =>
-    HandLandmarkerClass.createFromOptions(vision, {
-      baseOptions: { modelAssetPath: MODEL, delegate },
-      runningMode: "VIDEO",
-      numHands: 1,
-      minHandDetectionConfidence: DETECTION_CONFIDENCE,
-      minHandPresenceConfidence: PRESENCE_CONFIDENCE,
-      minTrackingConfidence: TRACKING_CONFIDENCE,
-    });
-
   const loadHandTracking = async () => {
+    const video = videoRef.current;
+    if (!video) return;
+
     setTrackingStatus("loading");
     setTrackingMessage("Preparando reconhecimento da mão…");
+    setTrackingError("");
     setHandDetected(false);
     clearSkeleton();
 
     try {
-      landmarkerRef.current?.close();
-      landmarkerRef.current = null;
-
-      const { FilesetResolver, HandLandmarker } = await import(
-        "@mediapipe/tasks-vision"
-      );
-      const vision = await FilesetResolver.forVisionTasks(WASM);
-
-      try {
-        landmarkerRef.current = await createLandmarker(
-          "CPU",
-          HandLandmarker,
-          vision,
-        );
-      } catch {
-        landmarkerRef.current = await createLandmarker(
-          "GPU",
-          HandLandmarker,
-          vision,
-        );
+      if (requestRef.current) {
+        cancelAnimationFrame(requestRef.current);
+        requestRef.current = null;
       }
 
+      await handsRef.current?.close?.();
+      handsRef.current = null;
+      processingRef.current = false;
+
+      await loadHandsScript();
+
+      const HandsClass = window.Hands;
+      if (!HandsClass) {
+        throw new Error("O detector MediaPipe Hands não foi inicializado.");
+      }
+
+      const hands = new HandsClass({
+        locateFile: (file) => `${HANDS_ASSET_ROOT}/${file}`,
+      });
+
+      hands.setOptions({
+        selfieMode: false,
+        maxNumHands: 1,
+        modelComplexity: 0,
+        minDetectionConfidence: DETECTION_CONFIDENCE,
+        minTrackingConfidence: TRACKING_CONFIDENCE,
+      });
+
+      hands.onResults(handleResults);
+      handsRef.current = hands;
+
       fpsRef.current = { at: performance.now(), frames: 0 };
-      lastVideoTimeRef.current = -1;
       lastDetectAtRef.current = 0;
+
       setTrackingStatus("ready");
       setTrackingMessage("Reconhecimento ativo");
       startTrackingLoop();
-    } catch {
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+
+      console.error("Falha ao inicializar MediaPipe Hands:", error);
       setTrackingStatus("error");
       setTrackingMessage(
         "A câmera está ativa, mas o reconhecimento da mão não carregou.",
       );
+      setTrackingError(detail);
     }
   };
 
@@ -226,8 +324,10 @@ export function HandTracker({ onFrame }: Props) {
         requestRef.current = null;
       }
 
-      landmarkerRef.current?.close();
-      landmarkerRef.current = null;
+      await handsRef.current?.close?.();
+      handsRef.current = null;
+      processingRef.current = false;
+
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
       clearSkeleton();
@@ -383,13 +483,20 @@ export function HandTracker({ onFrame }: Props) {
           )}
 
           {trackingStatus === "error" && (
-            <button
-              className="metric metric-button"
-              type="button"
-              onClick={() => void loadHandTracking()}
-            >
-              Reconhecimento falhou · tentar novamente
-            </button>
+            <>
+              <button
+                className="metric metric-button"
+                type="button"
+                onClick={() => void loadHandTracking()}
+              >
+                Reconhecimento falhou · tentar novamente
+              </button>
+              {trackingError && (
+                <span className="metric tracking-error" title={trackingError}>
+                  Erro: {trackingError}
+                </span>
+              )}
+            </>
           )}
         </div>
       )}
