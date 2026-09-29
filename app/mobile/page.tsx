@@ -11,9 +11,9 @@ import type { GesturePacket, HandPoint } from "@/lib/protocol";
 const PREFIX = process.env.NEXT_PUBLIC_PEER_PREFIX || "gesture-control";
 
 const actionName = (action: string) => ({
-  pointer: "Movendo o ponteiro",
+  pointer: "Movendo",
   click: "Clique",
-  scroll: "Rolando a página",
+  scroll: "Rolando",
   history_back: "Voltando",
   history_forward: "Avançando",
 }[action] ?? action);
@@ -24,7 +24,7 @@ export default function MobilePage() {
   const lastFrameAt = useRef(0);
   const [code, setCode] = useState("");
   const [state, setState] = useState<"idle" | "connecting" | "connected" | "error">("idle");
-  const [lastAction, setLastAction] = useState("Nenhuma ainda");
+  const [lastAction, setLastAction] = useState("Nenhuma");
   const [error, setError] = useState("");
 
   useEffect(() => () => {
@@ -35,7 +35,7 @@ export default function MobilePage() {
   const connect = useCallback(async () => {
     const clean = code.replace(/\D/g, "").slice(0, 6);
     if (clean.length !== 6) {
-      setError("Digite os 6 números que aparecem no computador.");
+      setError("Digite os 6 números mostrados no computador.");
       return;
     }
 
@@ -60,13 +60,13 @@ export default function MobilePage() {
 
       conn.on("close", () => setState("idle"));
       conn.on("error", () => {
-        setError("Não foi possível conectar. Confira o código e tente novamente.");
+        setError("Falha ao conectar. Confira o código.");
         setState("error");
       });
     });
 
     peer.on("error", () => {
-      setError("Não foi possível conectar. Confira o código e tente novamente.");
+      setError("Falha ao conectar. Confira o código.");
       setState("error");
     });
   }, [code]);
@@ -94,86 +94,65 @@ export default function MobilePage() {
   const connected = state === "connected";
 
   return (
-    <main className="shell device-page">
-      <header className="topbar">
-        <div>
-          <Link className="back-link" href="/">← voltar</Link>
-          <span className="eyebrow">NO CELULAR</span>
-          <h1>Use sua mão como controle</h1>
-          <p>Primeiro ative a câmera. Depois conecte o celular ao computador usando o código de 6 números.</p>
+    <main className="screen-shell device-screen mobile-screen">
+      <header className="compact-header">
+        <div className="compact-heading">
+          <Link className="back-link" href="/">←</Link>
+          <div>
+            <span className="eyebrow">CELULAR</span>
+            <h1>Controle com a mão</h1>
+          </div>
         </div>
         <span className={`status-pill ${connected ? "online" : state === "error" ? "error" : ""}`}>
-          {connected ? "✓ Pronto para usar" : state === "connecting" ? "Conectando…" : "Aguardando conexão"}
+          {connected ? "✓ Conectado" : state === "connecting" ? "Conectando…" : "Aguardando"}
         </span>
       </header>
 
-      <section className="step-strip" aria-label="Passos no celular">
-        <article className="mini-step done">
-          <span>1</span>
-          <div><strong>Deixe o computador aberto</strong><small>O código precisa estar aparecendo na tela.</small></div>
-        </article>
-        <article className="mini-step active">
-          <span>2</span>
-          <div><strong>Ative a câmera</strong><small>Toque no botão e permita o acesso quando o celular perguntar.</small></div>
-        </article>
-        <article className={`mini-step ${connected ? "done" : ""}`}>
-          <span>3</span>
-          <div><strong>Digite o código</strong><small>Use os 6 números mostrados no computador.</small></div>
-        </article>
-        <article className={`mini-step ${connected ? "active" : ""}`}>
-          <span>4</span>
-          <div><strong>Mostre sua mão</strong><small>O desenho deve acompanhar seus dedos.</small></div>
-        </article>
-      </section>
+      <div className="micro-steps" aria-label="Passos">
+        <span>1. Ative a câmera</span>
+        <span>2. Digite o código</span>
+        <span>3. Mostre a mão</span>
+      </div>
 
-      <section className="device-grid">
+      <section className="mobile-workspace">
         <div className="panel camera-panel">
-          <div className="panel-title">
-            <div>
-              <span className="eyebrow">PASSO 2 · CÂMERA</span>
-              <h2>Autorize a câmera</h2>
-            </div>
-            <span className="camera-tip">✋ mantenha a mão inteira visível</span>
-          </div>
+          <div className="camera-overlay-label">✋ Mantenha a mão inteira visível</div>
           <HandTracker onFrame={onHandFrame} />
         </div>
 
-        <aside className="panel controls">
-          <div>
-            <span className="eyebrow">PASSO 3</span>
-            <h2>Conecte ao computador</h2>
-            <p className="small">Olhe para a tela do computador e copie o código de 6 números.</p>
+        <aside className="panel mobile-controls">
+          <div className="connect-row">
+            <label className="compact-code-label">
+              <span>Código do computador</span>
+              <input
+                className="input code-input"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                placeholder="000000"
+                value={code}
+                onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+              />
+            </label>
+
+            <button className="button connect-button" type="button" onClick={connect} disabled={state === "connecting"}>
+              {connected ? "Reconectar" : state === "connecting" ? "Conectando…" : "Conectar"}
+            </button>
           </div>
 
-          <label className="label">
-            Código mostrado no computador
-            <input
-              className="input code-input"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              maxLength={6}
-              placeholder="000000"
-              value={code}
-              onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
-            />
-          </label>
-
-          <button className="button" type="button" onClick={connect} disabled={state === "connecting"}>
-            {connected ? "Conectar novamente" : state === "connecting" ? "Conectando…" : "Conectar ao computador"}
-          </button>
-
-          {error && <div className="notice warn">{error}</div>}
-          {connected && <div className="notice good">✓ Conectado. Agora mostre sua mão e use os gestos abaixo.</div>}
-
-          <div className="gesture-list">
-            <div><span>☝️</span><div><strong>Apontar</strong><small>Move o ponteiro</small></div></div>
-            <div><span>🤏</span><div><strong>Juntar polegar e indicador</strong><small>Faz um clique</small></div></div>
-            <div><span>✋</span><div><strong>Mover para cima ou para baixo</strong><small>Rola a página</small></div></div>
-            <div><span>↔️</span><div><strong>Mover a mão para os lados</strong><small>Volta ou avança</small></div></div>
+          <div className="mobile-feedback" aria-live="polite">
+            {error ? <span className="feedback-error">{error}</span> : connected ? <span className="feedback-good">✓ Pronto para controlar</span> : <span>Ative a câmera e informe o código.</span>}
+            <strong>{lastAction}</strong>
           </div>
 
-          <div className="kv"><span>Última ação</span><strong>{lastAction}</strong></div>
-          <div className="privacy-note">🔒 A imagem da câmera fica somente no seu celular.</div>
+          <div className="compact-gestures" aria-label="Gestos">
+            <div><span>☝️</span><small>Mover</small></div>
+            <div><span>🤏</span><small>Clicar</small></div>
+            <div><span>↕️</span><small>Rolar</small></div>
+            <div><span>↔️</span><small>Navegar</small></div>
+          </div>
+
+          <div className="privacy-line">🔒 A imagem da câmera permanece neste celular.</div>
         </aside>
       </section>
     </main>

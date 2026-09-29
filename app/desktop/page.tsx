@@ -17,13 +17,13 @@ const gestureName = (gesture: string) => ({
   POINTER: "Apontando",
   PINCH: "Clique",
   OPEN_PALM: "Mão aberta",
-  "AGUARDANDO MÃO": "Aguardando sua mão",
+  "AGUARDANDO MÃO": "Aguardando mão",
 }[gesture] ?? gesture);
 
 const actionName = (action: string) => ({
-  pointer: "Movendo o ponteiro",
+  pointer: "Movendo",
   click: "Clique",
-  scroll: "Rolando a página",
+  scroll: "Rolando",
   history_back: "Voltando",
   history_forward: "Avançando",
 }[action] ?? action);
@@ -36,7 +36,7 @@ export default function DesktopPage() {
   const [connected, setConnected] = useState(false);
   const [extensionReady, setExtensionReady] = useState(false);
   const [extensionsHelp, setExtensionsHelp] = useState("");
-  const [lastAction, setLastAction] = useState("Nenhuma ainda");
+  const [lastAction, setLastAction] = useState("Nenhuma");
   const [gesture, setGesture] = useState("AGUARDANDO MÃO");
   const [demoCursor, setDemoCursor] = useState({ x: 0.5, y: 0.5 });
   const [demoClicks, setDemoClicks] = useState(0);
@@ -60,15 +60,15 @@ export default function DesktopPage() {
     try {
       await navigator.clipboard.writeText(address);
     } catch {
-      // O endereço continua visível na instrução mesmo quando a área de transferência não está disponível.
+      // O endereço segue visível na interface.
     }
 
     const opened = window.open(address, "_blank", "noopener,noreferrer");
-    if (opened) {
-      setExtensionsHelp("A tela de extensões foi solicitada em outra aba. Se ela não abrir, cole o endereço copiado na barra do navegador.");
-    } else {
-      setExtensionsHelp("O navegador bloqueou a abertura automática. O endereço foi copiado: cole-o na barra do navegador.");
-    }
+    setExtensionsHelp(
+      opened
+        ? "Abertura solicitada. Se não aparecer, cole o endereço copiado na barra."
+        : "O navegador bloqueou. Cole o endereço copiado na barra.",
+    );
   };
 
   useEffect(() => {
@@ -106,6 +106,7 @@ export default function DesktopPage() {
     };
 
     void createReceiver();
+
     return () => {
       disposed = true;
       connRef.current?.close();
@@ -116,7 +117,9 @@ export default function DesktopPage() {
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
       if (event.source !== window) return;
-      if (event.data?.source === "gesture-control-extension" && event.data?.type === "ready") setExtensionReady(true);
+      if (event.data?.source === "gesture-control-extension" && event.data?.type === "ready") {
+        setExtensionReady(true);
+      }
     };
 
     window.addEventListener("message", onMessage);
@@ -125,127 +128,102 @@ export default function DesktopPage() {
   }, []);
 
   return (
-    <main className="shell device-page">
-      <header className="topbar">
-        <div>
-          <Link className="back-link" href="/">← voltar</Link>
-          <span className="eyebrow">NO COMPUTADOR</span>
-          <h1>Prepare o computador</h1>
-          <p>Deixe esta página aberta, conecte o celular pelo código e depois use sua mão para controlar outras páginas.</p>
+    <main className="screen-shell device-screen desktop-screen">
+      <header className="compact-header">
+        <div className="compact-heading">
+          <Link className="back-link" href="/">←</Link>
+          <div>
+            <span className="eyebrow">COMPUTADOR</span>
+            <h1>Prepare o navegador</h1>
+          </div>
         </div>
         <span className={`status-pill ${connected ? "online" : ""}`}>
-          {connected ? "✓ Celular conectado" : "Aguardando o celular"}
+          {connected ? "✓ Celular conectado" : "Aguardando celular"}
         </span>
       </header>
 
-      <section className="step-strip" aria-label="Passos no computador">
-        <article className="mini-step done">
-          <span>1</span>
-          <div><strong>Abra esta tela</strong><small>Não feche esta página.</small></div>
-        </article>
-        <article className={`mini-step ${extensionReady ? "done" : "active"}`}>
-          <span>2</span>
-          <div><strong>Ative o controle do navegador</strong><small>Faça isso apenas na primeira vez.</small></div>
-        </article>
-        <article className={`mini-step ${connected ? "done" : extensionReady ? "active" : ""}`}>
-          <span>3</span>
-          <div><strong>Conecte o celular</strong><small>Digite no celular o código desta tela.</small></div>
-        </article>
-        <article className={`mini-step ${connected ? "active" : ""}`}>
-          <span>4</span>
-          <div><strong>Comece a controlar</strong><small>Troque de aba e use sua mão.</small></div>
-        </article>
-      </section>
+      <div className="micro-steps desktop-steps" aria-label="Passos">
+        <span className={extensionReady ? "done" : "active"}>1. Ative o complemento</span>
+        <span className={extensionReady && !connected ? "active" : connected ? "done" : ""}>2. Digite o código no celular</span>
+        <span className={connected ? "active" : ""}>3. Use a mão</span>
+      </div>
 
-      <section className="device-grid">
-        <div className="panel connect-card">
-          <span className="eyebrow">PASSO 3 · CÓDIGO DO CELULAR</span>
-          <h2>Digite estes números no celular</h2>
+      <section className="desktop-workspace">
+        <article className="panel code-panel">
+          <span className="eyebrow">CÓDIGO DO CELULAR</span>
+          <h2>Digite no celular</h2>
           <div className="code" aria-label={`Código ${code}`}>{code}</div>
-          <p className="small">Abra este mesmo site no celular, toque em “Estou no celular” e digite o código acima.</p>
-
-          <div className={`notice ${connected ? "good" : ""}`}>
-            {connected ? "✓ Tudo certo. O celular está conectado." : "Quando o celular conectar, esta mensagem mudará automaticamente."}
+          <div className={`notice compact-notice ${connected ? "good" : ""}`}>
+            {connected ? "✓ Celular conectado" : "Aguardando o código ser informado no celular."}
           </div>
+          <div className="status-grid">
+            <div><span>Movimento</span><strong>{gestureName(gesture)}</strong></div>
+            <div><span>Última ação</span><strong>{lastAction}</strong></div>
+          </div>
+        </article>
 
-          <div className="kv"><span>Movimento reconhecido</span><strong>{gestureName(gesture)}</strong></div>
-          <div className="kv"><span>Última ação</span><strong>{lastAction}</strong></div>
-        </div>
-
-        <div className="panel">
-          <div className="panel-title">
-            <div>
-              <span className="eyebrow">SUA MÃO</span>
-              <h2>Veja o movimento chegando</h2>
-            </div>
+        <article className="panel hand-panel">
+          <div className="panel-heading-row">
+            <div><span className="eyebrow">SUA MÃO</span><h2>Movimento recebido</h2></div>
+            <span className={`mini-status ${connected ? "online" : ""}`}>{connected ? "ao vivo" : "aguardando"}</span>
           </div>
           <div className="remote-stage"><canvas ref={canvasRef} /></div>
-          <p className="small">O computador recebe apenas o desenho dos movimentos. A imagem da câmera continua no celular.</p>
-        </div>
-      </section>
-
-      {!extensionReady && (
-        <section className="panel setup-card">
-          <div className="setup-copy">
-            <span className="eyebrow">CONFIGURAÇÃO INICIAL · UMA ÚNICA VEZ</span>
-            <h2>Ative o controle em outras páginas</h2>
-            <p>Para controlar outros sites, instale o complemento do Gesture Control no Chrome ou Edge.</p>
-            <div className="setup-actions">
-              <a className="button download-button" href="/gesture-control-extension.zip" download>
-                1. Baixar complemento
-              </a>
-              <button className="button secondary" type="button" onClick={openExtensionsPage}>
-                2. Abrir extensões do navegador
-              </button>
+          <div className="demo-strip">
+            <span>Teste:</span>
+            <div className="demo-mini">
+              <button type="button">A</button>
+              <button type="button">B</button>
+              <span className="demo-cursor" style={{ left: `${demoCursor.x * 100}%`, top: `${demoCursor.y * 100}%` }} />
             </div>
-            {extensionsHelp && <div className="notice">{extensionsHelp}</div>}
+            <strong>{demoClicks} cliques</strong>
+          </div>
+        </article>
+
+        <aside className="panel browser-panel">
+          <div className="panel-heading-row">
+            <div>
+              <span className="eyebrow">CONTROLE DO NAVEGADOR</span>
+              <h2>{extensionReady ? "Pronto para usar" : "Configuração inicial"}</h2>
+            </div>
+            <span className={`mini-status ${extensionReady ? "online" : ""}`}>
+              {extensionReady ? "ativo" : "pendente"}
+            </span>
           </div>
 
-          <ol className="install-steps">
-            <li>
-              <span>1</span>
+          {extensionReady ? (
+            <div className="ready-compact">
+              <span>✓</span>
               <div>
-                <strong>Baixe e extraia o arquivo</strong>
-                <small>Agora o ZIP cria a pasta <b>gesture-control-extension</b>. É essa pasta que você deve selecionar.</small>
+                <strong>Complemento ativo</strong>
+                <small>Deixe esta tela aberta e troque para a página que deseja controlar.</small>
               </div>
-            </li>
-            <li>
-              <span>2</span>
-              <div>
-                <strong>Abra a tela de extensões</strong>
-                <small>Use o botão ao lado. Se o navegador bloquear, cole <code>chrome://extensions/</code> na barra de endereço.</small>
+            </div>
+          ) : (
+            <>
+              <div className="setup-actions compact-actions">
+                <a className="button" href="/gesture-control-extension.zip" download>Baixar complemento</a>
+                <button className="button secondary" type="button" onClick={openExtensionsPage}>Abrir extensões</button>
               </div>
-            </li>
-            <li><span>3</span><div><strong>Ative “Modo do desenvolvedor”</strong><small>Use o botão no canto superior da tela.</small></div></li>
-            <li><span>4</span><div><strong>Clique em “Carregar sem compactação”</strong><small>Escolha a pasta <b>gesture-control-extension</b> criada ao extrair o ZIP.</small></div></li>
-            <li><span>5</span><div><strong>Volte aqui e recarregue a página</strong><small>Esta área desaparecerá quando estiver pronto.</small></div></li>
-          </ol>
-        </section>
-      )}
 
-      {extensionReady && (
-        <section className="panel ready-card">
-          <span className="ready-icon">✓</span>
-          <div>
-            <span className="eyebrow">CONTROLE DO NAVEGADOR ATIVO</span>
-            <h2>Pronto para usar em outras páginas</h2>
-            <p>Deixe esta página aberta. Depois troque para a página que deseja controlar e use os gestos com a mão.</p>
+              <ol className="install-steps compact-install">
+                <li><span>1</span><div><strong>Extraia o ZIP</strong><small>Ele cria a pasta gesture-control-extension.</small></div></li>
+                <li><span>2</span><div><strong>Abra extensões</strong><small>Use o botão acima ou cole chrome://extensions/.</small></div></li>
+                <li><span>3</span><div><strong>Modo do desenvolvedor</strong><small>Ative no canto superior.</small></div></li>
+                <li><span>4</span><div><strong>Carregar sem compactação</strong><small>Escolha a pasta extraída.</small></div></li>
+                <li><span>5</span><div><strong>Recarregue esta tela</strong><small>O status mudará para ativo.</small></div></li>
+              </ol>
+            </>
+          )}
+
+          {extensionsHelp && <div className="notice compact-help">{extensionsHelp}</div>}
+
+          <div className="compact-gestures desktop-gestures">
+            <div><span>☝️</span><small>Mover</small></div>
+            <div><span>🤏</span><small>Clicar</small></div>
+            <div><span>↕️</span><small>Rolar</small></div>
+            <div><span>↔️</span><small>Navegar</small></div>
           </div>
-        </section>
-      )}
-
-      <section className="panel">
-        <div className="section-heading">
-          <span className="eyebrow">TESTE AQUI</span>
-          <h2>Confirme que seus movimentos estão funcionando</h2>
-          <p className="small">Mova o indicador para deslocar o ponto azul. Junte o polegar e o indicador para registrar um clique.</p>
-        </div>
-        <div className="demo-area">
-          <button className="demo-button one" type="button">Botão 1</button>
-          <button className="demo-button two" type="button">Botão 2</button>
-          <span className="demo-cursor" style={{ left: `${demoCursor.x * 100}%`, top: `${demoCursor.y * 100}%` }} />
-        </div>
-        <div className="kv"><span>Cliques reconhecidos</span><strong>{demoClicks}</strong></div>
+        </aside>
       </section>
     </main>
   );

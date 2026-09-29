@@ -1,71 +1,64 @@
 import Link from "next/link";
 
 const steps = [
-  { n: "1", title: "Comece pelo computador", text: "Abra esta página no computador e escolha “Usar este computador”." },
-  { n: "2", title: "Depois pegue o celular", text: "Abra o mesmo site no celular e escolha “Usar este celular”." },
-  { n: "3", title: "Conecte os dois", text: "Digite no celular o código de 6 números que aparece no computador." },
-  { n: "4", title: "Mostre sua mão", text: "Mantenha a mão inteira visível na câmera. O desenho da mão aparecerá na tela e você já poderá controlar." },
+  ["1", "No computador", "Abra o modo computador."],
+  ["2", "No celular", "Abra o mesmo site."],
+  ["3", "Conecte", "Digite o código de 6 números."],
+  ["4", "Controle", "Mostre a mão para a câmera."],
 ];
 
 export default function Home() {
   return (
-    <main className="shell landing">
-      <section className="hero">
-        <span className="eyebrow">CONTROLE POR GESTOS</span>
-        <h1>Controle o navegador com a mão</h1>
+    <main className="screen-shell home-screen">
+      <header className="home-header">
+        <div>
+          <span className="eyebrow">CONTROLE POR GESTOS</span>
+          <h1>Controle o navegador com a mão</h1>
+        </div>
         <p className="lead">
-          Use a câmera do celular para mover o ponteiro, clicar e rolar páginas no computador sem encostar no mouse.
+          Use a câmera do celular como controle do navegador no computador.
         </p>
-      </section>
+      </header>
 
-      <section className="panel onboarding">
-        <div className="section-heading">
-          <span className="eyebrow">COMO USAR</span>
-          <h2>São só 4 passos</h2>
-        </div>
-        <div className="steps-grid">
-          {steps.map((step) => (
-            <article className="step-card" key={step.n}>
-              <span className="step-number">{step.n}</span>
-              <div>
-                <h3>{step.title}</h3>
-                <p>{step.text}</p>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="role-grid" aria-label="Escolha este dispositivo">
+      <section className="home-grid" aria-label="Escolha este dispositivo">
         <Link className="role-card primary-card" href="/desktop">
           <span className="device-icon" aria-hidden="true">💻</span>
           <span className="role-index">COMECE AQUI</span>
           <h2>Estou no computador</h2>
-          <p>Mostre o código para conectar o celular e prepare o navegador para receber seus movimentos.</p>
+          <p>Mostre o código e prepare o navegador.</p>
           <strong>Usar este computador →</strong>
         </Link>
 
         <Link className="role-card" href="/mobile">
           <span className="device-icon" aria-hidden="true">📱</span>
-          <span className="role-index">SEGUNDO PASSO</span>
+          <span className="role-index">DEPOIS NO CELULAR</span>
           <h2>Estou no celular</h2>
-          <p>Abra a câmera, digite o código do computador e use sua mão como controle.</p>
+          <p>Ative a câmera, digite o código e controle.</p>
           <strong>Usar este celular →</strong>
         </Link>
+
+        <section className="panel quick-start">
+          <div className="quick-title">
+            <span className="eyebrow">COMO USAR</span>
+            <strong>4 passos rápidos</strong>
+          </div>
+          <div className="quick-steps">
+            {steps.map(([n, title, text]) => (
+              <article key={n}>
+                <span>{n}</span>
+                <div><strong>{title}</strong><small>{text}</small></div>
+              </article>
+            ))}
+          </div>
+        </section>
       </section>
 
-      <section className="panel gesture-overview">
-        <div className="section-heading">
-          <span className="eyebrow">GESTOS</span>
-          <h2>Movimentos simples</h2>
-        </div>
-        <div className="gesture-grid">
-          <div><span>☝️</span><strong>Apontar</strong><small>Move o ponteiro</small></div>
-          <div><span>🤏</span><strong>Juntar os dedos</strong><small>Faz um clique</small></div>
-          <div><span>✋</span><strong>Mover para cima/baixo</strong><small>Rola a página</small></div>
-          <div><span>✋</span><strong>Mover para os lados</strong><small>Volta ou avança</small></div>
-        </div>
-      </section>
+      <footer className="gesture-bar" aria-label="Gestos disponíveis">
+        <div><span>☝️</span><strong>Apontar</strong><small>mover</small></div>
+        <div><span>🤏</span><strong>Pinça</strong><small>clicar</small></div>
+        <div><span>↕️</span><strong>Mão aberta</strong><small>rolar</small></div>
+        <div><span>↔️</span><strong>Mão aberta</strong><small>voltar/avançar</small></div>
+      </footer>
     </main>
   );
 }
