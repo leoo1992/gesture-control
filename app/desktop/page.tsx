@@ -35,6 +35,7 @@ export default function DesktopPage() {
   const [code, setCode] = useState("------");
   const [connected, setConnected] = useState(false);
   const [extensionReady, setExtensionReady] = useState(false);
+  const [extensionsHelp, setExtensionsHelp] = useState("");
   const [lastAction, setLastAction] = useState("Nenhuma ainda");
   const [gesture, setGesture] = useState("AGUARDANDO MÃO");
   const [demoCursor, setDemoCursor] = useState({ x: 0.5, y: 0.5 });
@@ -52,6 +53,23 @@ export default function DesktopPage() {
     if (canvasRef.current) drawHand(canvasRef.current, frame.landmarks);
     window.postMessage({ source: "gesture-control-app", type: "gesture-frame", frame }, "*");
   }, []);
+
+  const openExtensionsPage = async () => {
+    const address = navigator.userAgent.includes("Edg/") ? "edge://extensions/" : "chrome://extensions/";
+
+    try {
+      await navigator.clipboard.writeText(address);
+    } catch {
+      // O endereço continua visível na instrução mesmo quando a área de transferência não está disponível.
+    }
+
+    const opened = window.open(address, "_blank", "noopener,noreferrer");
+    if (opened) {
+      setExtensionsHelp("A tela de extensões foi solicitada em outra aba. Se ela não abrir, cole o endereço copiado na barra do navegador.");
+    } else {
+      setExtensionsHelp("O navegador bloqueou a abertura automática. O endereço foi copiado: cole-o na barra do navegador.");
+    }
+  };
 
   useEffect(() => {
     let disposed = false;
@@ -171,17 +189,35 @@ export default function DesktopPage() {
           <div className="setup-copy">
             <span className="eyebrow">CONFIGURAÇÃO INICIAL · UMA ÚNICA VEZ</span>
             <h2>Ative o controle em outras páginas</h2>
-            <p>Para controlar sites fora desta tela, instale o pequeno complemento do Gesture Control no Chrome ou Edge.</p>
-            <a className="button download-button" href="/gesture-control-extension.zip" download>
-              Baixar complemento do navegador
-            </a>
+            <p>Para controlar outros sites, instale o complemento do Gesture Control no Chrome ou Edge.</p>
+            <div className="setup-actions">
+              <a className="button download-button" href="/gesture-control-extension.zip" download>
+                1. Baixar complemento
+              </a>
+              <button className="button secondary" type="button" onClick={openExtensionsPage}>
+                2. Abrir extensões do navegador
+              </button>
+            </div>
+            {extensionsHelp && <div className="notice">{extensionsHelp}</div>}
           </div>
 
           <ol className="install-steps">
-            <li><span>1</span><div><strong>Baixe e extraia o arquivo</strong><small>Abra a pasta que foi criada.</small></div></li>
-            <li><span>2</span><div><strong>Abra a tela de extensões</strong><small>No Chrome, digite <code>chrome://extensions</code> na barra de endereço.</small></div></li>
+            <li>
+              <span>1</span>
+              <div>
+                <strong>Baixe e extraia o arquivo</strong>
+                <small>Agora o ZIP cria a pasta <b>gesture-control-extension</b>. É essa pasta que você deve selecionar.</small>
+              </div>
+            </li>
+            <li>
+              <span>2</span>
+              <div>
+                <strong>Abra a tela de extensões</strong>
+                <small>Use o botão ao lado. Se o navegador bloquear, cole <code>chrome://extensions/</code> na barra de endereço.</small>
+              </div>
+            </li>
             <li><span>3</span><div><strong>Ative “Modo do desenvolvedor”</strong><small>Use o botão no canto superior da tela.</small></div></li>
-            <li><span>4</span><div><strong>Clique em “Carregar sem compactação”</strong><small>Escolha a pasta extraída no passo 1.</small></div></li>
+            <li><span>4</span><div><strong>Clique em “Carregar sem compactação”</strong><small>Escolha a pasta <b>gesture-control-extension</b> criada ao extrair o ZIP.</small></div></li>
             <li><span>5</span><div><strong>Volte aqui e recarregue a página</strong><small>Esta área desaparecerá quando estiver pronto.</small></div></li>
           </ol>
         </section>

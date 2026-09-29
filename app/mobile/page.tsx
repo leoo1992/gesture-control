@@ -100,7 +100,7 @@ export default function MobilePage() {
           <Link className="back-link" href="/">← voltar</Link>
           <span className="eyebrow">NO CELULAR</span>
           <h1>Use sua mão como controle</h1>
-          <p>Siga os passos abaixo. Quando estiver conectado, mantenha a mão inteira dentro da imagem da câmera.</p>
+          <p>Primeiro ative a câmera. Depois conecte o celular ao computador usando o código de 6 números.</p>
         </div>
         <span className={`status-pill ${connected ? "online" : state === "error" ? "error" : ""}`}>
           {connected ? "✓ Pronto para usar" : state === "connecting" ? "Conectando…" : "Aguardando conexão"}
@@ -110,14 +110,18 @@ export default function MobilePage() {
       <section className="step-strip" aria-label="Passos no celular">
         <article className="mini-step done">
           <span>1</span>
-          <div><strong>Abra o computador</strong><small>Deixe a tela do computador aberta.</small></div>
+          <div><strong>Deixe o computador aberto</strong><small>O código precisa estar aparecendo na tela.</small></div>
         </article>
-        <article className={`mini-step ${connected ? "done" : "active"}`}>
+        <article className="mini-step active">
           <span>2</span>
+          <div><strong>Ative a câmera</strong><small>Toque no botão e permita o acesso quando o celular perguntar.</small></div>
+        </article>
+        <article className={`mini-step ${connected ? "done" : ""}`}>
+          <span>3</span>
           <div><strong>Digite o código</strong><small>Use os 6 números mostrados no computador.</small></div>
         </article>
         <article className={`mini-step ${connected ? "active" : ""}`}>
-          <span>3</span>
+          <span>4</span>
           <div><strong>Mostre sua mão</strong><small>O desenho deve acompanhar seus dedos.</small></div>
         </article>
       </section>
@@ -126,23 +130,23 @@ export default function MobilePage() {
         <div className="panel camera-panel">
           <div className="panel-title">
             <div>
-              <span className="eyebrow">SUA CÂMERA</span>
-              <h2>Mantenha a mão visível</h2>
+              <span className="eyebrow">PASSO 2 · CÂMERA</span>
+              <h2>Autorize a câmera</h2>
             </div>
-            <span className="camera-tip">✋ mão inteira na tela</span>
+            <span className="camera-tip">✋ mantenha a mão inteira visível</span>
           </div>
           <HandTracker onFrame={onHandFrame} />
         </div>
 
         <aside className="panel controls">
           <div>
-            <span className="eyebrow">PASSO 2</span>
+            <span className="eyebrow">PASSO 3</span>
             <h2>Conecte ao computador</h2>
-            <p className="small">Olhe para a tela do computador e copie o código abaixo.</p>
+            <p className="small">Olhe para a tela do computador e copie o código de 6 números.</p>
           </div>
 
           <label className="label">
-            Código de 6 números
+            Código mostrado no computador
             <input
               className="input code-input"
               inputMode="numeric"
@@ -159,7 +163,7 @@ export default function MobilePage() {
           </button>
 
           {error && <div className="notice warn">{error}</div>}
-          {connected && <div className="notice good">✓ Conectado. Agora use os gestos abaixo.</div>}
+          {connected && <div className="notice good">✓ Conectado. Agora mostre sua mão e use os gestos abaixo.</div>}
 
           <div className="gesture-list">
             <div><span>☝️</span><div><strong>Apontar</strong><small>Move o ponteiro</small></div></div>

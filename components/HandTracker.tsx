@@ -23,13 +23,15 @@ const gestureName = (gesture: string) => ({
 export function HandTracker({ onFrame }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const landmarkerRef = useRef<HandLandmarker | null>(null);
   const engineRef = useRef(new GestureEngine());
   const requestRef = useRef<number | null>(null);
   const onFrameRef = useRef(onFrame);
   const lastVideoTimeRef = useRef(-1);
   const fpsRef = useRef({ at: 0, frames: 0 });
-  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
-  const [message, setMessage] = useState("Abrindo a câmera…");
+  const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [message, setMessage] = useState("Toque em “Ativar câmera” para começar.");
   const [gesture, setGesture] = useState("SEM MÃO");
   const [fps, setFps] = useState(0);
 
@@ -38,109 +40,134 @@ export function HandTracker({ onFrame }: Props) {
   }, [onFrame]);
 
   useEffect(() => {
-    let cancelled = false;
-    let stream: MediaStream | null = null;
-    let landmarker: HandLandmarker | null = null;
+    return () => {
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      landmarkerRef.current?.close();
+    };
+  }, []);
 
-    const tick = () => {
-      if (cancelled || !landmarker) return;
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      if (!video || !canvas) return;
-      const now = performance.now();
+  const tick = () => {
+    const landmarker = landmarkerRef.current;
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!landmarker || !video || !canvas) return;
 
-      if (video.readyState >= 2 && video.currentTime !== lastVideoTimeRef.current) {
-        lastVideoTimeRef.current = video.currentTime;
-        const result = landmarker.detectForVideo(video, now);
-        const raw = result.landmarks?.[0] as HandPoint[] | undefined;
+    const now = performance.now();
+    if (video.readyState >= 2 && video.currentTime !== lastVideoTimeRef.current) {
+      lastVideoTimeRef.current = video.currentTime;
+      const result = landmarker.detectForVideo(video, now);
+      const raw = result.landmarks?.[0] as HandPoint[] | undefined;
 
-        if (raw?.length === 21) {
-          drawHand(canvas, raw);
-          const snapshot = engineRef.current.update(raw, now);
-          setGesture(snapshot.gesture);
-          onFrameRef.current?.(raw, snapshot, now);
-        } else {
-          const ctx = canvas.getContext("2d");
-          ctx?.clearRect(0, 0, canvas.width, canvas.height);
-          setGesture("SEM MÃO");
-        }
-
-        fpsRef.current.frames += 1;
-        if (now - fpsRef.current.at >= 1000) {
-          setFps(fpsRef.current.frames);
-          fpsRef.current = { at: now, frames: 0 };
-        }
+      if (raw?.length === 21) {
+        drawHand(canvas, raw);
+        const snapshot = engineRef.current.update(raw, now);
+        setGesture(snapshot.gesture);
+        onFrameRef.current?.(raw, snapshot, now);
+      } else {
+        const ctx = canvas.getContext("2d");
+        ctx?.clearRect(0, 0, canvas.width, canvas.height);
+        setGesture("SEM MÃO");
       }
 
-      requestRef.current = requestAnimationFrame(tick);
-    };
-
-    async function start() {
-      try {
-        if (!navigator.mediaDevices?.getUserMedia) {
-          throw new Error("Este navegador não conseguiu abrir a câmera.");
-        }
-
-        const { FilesetResolver, HandLandmarker } = await import("@mediapipe/tasks-vision");
-        fpsRef.current.at = performance.now();
-        const vision = await FilesetResolver.forVisionTasks(WASM);
-
-        try {
-          landmarker = await HandLandmarker.createFromOptions(vision, {
-            baseOptions: { modelAssetPath: MODEL, delegate: "GPU" },
-            runningMode: "VIDEO",
-            numHands: 1,
-            minHandDetectionConfidence: 0.7,
-            minHandPresenceConfidence: 0.7,
-            minTrackingConfidence: 0.7,
-          });
-        } catch {
-          landmarker = await HandLandmarker.createFromOptions(vision, {
-            baseOptions: { modelAssetPath: MODEL, delegate: "CPU" },
-            runningMode: "VIDEO",
-            numHands: 1,
-            minHandDetectionConfidence: 0.7,
-            minHandPresenceConfidence: 0.7,
-            minTrackingConfidence: 0.7,
-          });
-        }
-
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: false,
-          video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
-        });
-
-        if (cancelled) return;
-        const video = videoRef.current;
-        if (!video) return;
-        video.srcObject = stream;
-        await video.play();
-        setStatus("ready");
-        setMessage("Câmera pronta");
-        tick();
-      } catch (error) {
-        setStatus("error");
-        setMessage(error instanceof Error ? error.message : "Não foi possível abrir a câmera.");
+      fpsRef.current.frames += 1;
+      if (now - fpsRef.current.at >= 1000) {
+        setFps(fpsRef.current.frames);
+        fpsRef.current = { at: now, frames: 0 };
       }
     }
 
-    void start();
+    requestRef.current = requestAnimationFrame(tick);
+  };
 
-    return () => {
-      cancelled = true;
-      if (requestRef.current) cancelAnimationFrame(requestRef.current);
-      stream?.getTracks().forEach((track) => track.stop());
-      landmarker?.close();
-    };
-  }, []);
+  const activateCamera = async () => {
+    if (status === "loading" || status === "ready") return;
+
+    setStatus("loading");
+    setMessage("Aguardando sua permissão para usar a câmera…");
+
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("Seu navegador não permite usar a câmera nesta página.");
+      }
+
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
+      });
+      streamRef.current = stream;
+
+      const video = videoRef.current;
+      if (!video) throw new Error("Não foi possível preparar a câmera.");
+
+      video.srcObject = stream;
+      await video.play();
+      setMessage("Câmera autorizada. Preparando o reconhecimento da mão…");
+
+      const { FilesetResolver, HandLandmarker } = await import("@mediapipe/tasks-vision");
+      const vision = await FilesetResolver.forVisionTasks(WASM);
+
+      try {
+        landmarkerRef.current = await HandLandmarker.createFromOptions(vision, {
+          baseOptions: { modelAssetPath: MODEL, delegate: "GPU" },
+          runningMode: "VIDEO",
+          numHands: 1,
+          minHandDetectionConfidence: 0.7,
+          minHandPresenceConfidence: 0.7,
+          minTrackingConfidence: 0.7,
+        });
+      } catch {
+        landmarkerRef.current = await HandLandmarker.createFromOptions(vision, {
+          baseOptions: { modelAssetPath: MODEL, delegate: "CPU" },
+          runningMode: "VIDEO",
+          numHands: 1,
+          minHandDetectionConfidence: 0.7,
+          minHandPresenceConfidence: 0.7,
+          minTrackingConfidence: 0.7,
+        });
+      }
+
+      fpsRef.current = { at: performance.now(), frames: 0 };
+      setStatus("ready");
+      setMessage("Câmera pronta");
+      tick();
+    } catch (error) {
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+
+      const cameraError = error as DOMException;
+      if (cameraError?.name === "NotAllowedError") {
+        setMessage("Permissão da câmera negada. Autorize a câmera nas configurações do navegador e tente novamente.");
+      } else if (cameraError?.name === "NotFoundError") {
+        setMessage("Nenhuma câmera foi encontrada neste celular.");
+      } else {
+        setMessage(error instanceof Error ? error.message : "Não foi possível abrir a câmera.");
+      }
+      setStatus("error");
+    }
+  };
 
   return (
     <div className="camera-stage" aria-label="Câmera com desenho da mão">
       <video ref={videoRef} playsInline muted />
       <canvas ref={canvasRef} />
+
+      {status !== "ready" && (
+        <div className="camera-permission">
+          <span className="camera-permission-icon" aria-hidden="true">📷</span>
+          <h3>{status === "error" ? "Não foi possível abrir a câmera" : "Ative a câmera do celular"}</h3>
+          <p>{message}</p>
+          <button className="button" type="button" onClick={activateCamera} disabled={status === "loading"}>
+            {status === "loading" ? "Aguardando permissão…" : status === "error" ? "Tentar novamente" : "Ativar câmera"}
+          </button>
+        </div>
+      )}
+
       <div className="camera-hud">
-        <span className="metric">{status === "error" ? "Câmera indisponível" : gestureName(gesture)}</span>
-        <span className="metric">{message}</span>
+        {status === "ready" && <span className="metric">{gestureName(gesture)}</span>}
+        {status === "ready" && <span className="metric">{message}</span>}
         {status === "ready" && <span className="metric subtle-metric">{fps} quadros/s</span>}
       </div>
     </div>
