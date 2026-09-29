@@ -3,7 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "prepare:mediapipe": "node scripts/prepare-mediapipe.mjs",
+    "predev": "npm run prepare:mediapipe",
     "dev": "next dev",
+    "prebuild": "npm run prepare:mediapipe",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",

@@ -48,7 +48,7 @@ export function HandTracker({ onFrame }: Props) {
   const [message, setMessage] = useState(
     "Toque em “Ativar câmera” para começar.",
   );
-  const [trackingMessage, setTrackingMessage] = useState("");
+  const [trackingMessage, setTrackingMessage] = useState("");\n  const [trackingError, setTrackingError] = useState("");
   const [gesture, setGesture] = useState("SEM MÃO");
   const [handDetected, setHandDetected] = useState(false);
   const [fps, setFps] = useState(0);

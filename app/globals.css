@@ -902,3 +902,12 @@ h1, h2, h3, p { margin-top: 0; }
   color: #ffd37a;
   border-color: rgba(255, 211, 122, .4);
 }
+
+.tracking-error {
+  max-width: min(100%, 520px);
+  color: #ffb0b8;
+  border-color: rgba(255, 127, 141, .35);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
