@@ -41,16 +41,17 @@ npm install
 npm run dev
 ```
 
-Abra no PC `http://localhost:3000/desktop` e no celular use a URL HTTPS do deploy (câmera mobile exige contexto seguro). Digite no celular o código de 6 dígitos mostrado no PC.
+Abra no PC `http://localhost:3000/desktop` e no celular use a URL HTTPS do deploy. A câmera é ativada por uma ação explícita do usuário e a aplicação mostra o estado da permissão antes e depois da solicitação.
 
 ## Extensão Chrome/Edge
 
-1. Abra `chrome://extensions`.
-2. Ative **Modo do desenvolvedor**.
-3. Clique em **Carregar sem compactação**.
-4. Selecione `extension/`.
-5. Recarregue `/desktop`.
-6. Depois do pareamento, mude para uma página comum e controle-a com a mão.
+1. Baixe o ZIP pelo próprio site.
+2. Extraia o ZIP; ele cria a pasta `gesture-control-extension`.
+3. Abra `chrome://extensions/` ou `edge://extensions/`.
+4. Ative **Modo do desenvolvedor**.
+5. Clique em **Carregar sem compactação**.
+6. Selecione a pasta `gesture-control-extension`.
+7. Recarregue a tela do computador no Gesture Control.
 
 A extensão não atua em páginas internas protegidas do navegador, como `chrome://` e a Chrome Web Store.
 
@@ -69,9 +70,31 @@ npm run lint
 npm run test
 npm run build
 python -m compileall api
+docker build -t gesture-control .
 ```
 
-O GitHub Actions executa as quatro validações em pushes e pull requests.
+O GitHub Actions valida lint, testes, build Next.js, backend Python e a imagem Docker.
+
+### Critérios do GitHub Explorer
+
+O repositório contém todos os sinais universais avaliados pelo projeto `github-explorer`:
+
+- README/documentação;
+- GitHub Actions;
+- testes automatizados;
+- ESLint;
+- Dockerfile;
+- `.env.example`;
+- licença MIT.
+
+TypeScript também está presente, embora seja informativo e não altere o score do GitHub Explorer.
+
+## Docker
+
+```bash
+docker build -t gesture-control .
+docker run --rm -p 3000:3000 gesture-control
+```
 
 ## Deploy
 

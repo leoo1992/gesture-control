@@ -21,3 +21,5 @@ jobs:
         with:
           python-version: "3.12"
       - run: python -m compileall api
+      - name: Validate Docker image
+        run: docker build -t gesture-control-ci .

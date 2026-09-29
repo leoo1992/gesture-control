@@ -10,15 +10,25 @@ type Props = {
   onFrame?: (points: HandPoint[], snapshot: GestureSnapshot, at: number) => void;
 };
 
-const MODEL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
-const WASM = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm";
+type CameraPermissionState =
+  | "checking"
+  | "prompt"
+  | "granted"
+  | "denied"
+  | "unknown";
 
-const gestureName = (gesture: string) => ({
-  POINTER: "Apontando",
-  PINCH: "Clique",
-  OPEN_PALM: "Mão aberta",
-  "SEM MÃO": "Mostre sua mão",
-}[gesture] ?? gesture);
+const MODEL =
+  "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
+const WASM =
+  "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm";
+
+const gestureName = (gesture: string) =>
+  ({
+    POINTER: "Apontando",
+    PINCH: "Clique",
+    OPEN_PALM: "Mão aberta",
+    "SEM MÃO": "Mostre sua mão",
+  })[gesture] ?? gesture;
 
 export function HandTracker({ onFrame }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -30,14 +40,65 @@ export function HandTracker({ onFrame }: Props) {
   const onFrameRef = useRef(onFrame);
   const lastVideoTimeRef = useRef(-1);
   const fpsRef = useRef({ at: 0, frames: 0 });
-  const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
-  const [message, setMessage] = useState("Toque em “Ativar câmera” para começar.");
+
+  const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">(
+    "idle",
+  );
+  const [permission, setPermission] =
+    useState<CameraPermissionState>("checking");
+  const [message, setMessage] = useState(
+    "Toque em “Ativar câmera” para começar.",
+  );
   const [gesture, setGesture] = useState("SEM MÃO");
   const [fps, setFps] = useState(0);
 
   useEffect(() => {
     onFrameRef.current = onFrame;
   }, [onFrame]);
+
+  useEffect(() => {
+    let permissionStatus: PermissionStatus | null = null;
+    let permissionListener: (() => void) | null = null;
+    let disposed = false;
+
+    const readPermission = async () => {
+      if (!navigator.permissions?.query) {
+        if (!disposed) setPermission("unknown");
+        return;
+      }
+
+      try {
+        permissionStatus = await navigator.permissions.query({
+          name: "camera" as PermissionName,
+        });
+
+        if (disposed) return;
+
+        permissionListener = () => {
+          const state = permissionStatus?.state;
+          setPermission(
+            state === "granted" || state === "denied" || state === "prompt"
+              ? state
+              : "unknown",
+          );
+        };
+
+        permissionListener();
+        permissionStatus.addEventListener("change", permissionListener);
+      } catch {
+        if (!disposed) setPermission("unknown");
+      }
+    };
+
+    void readPermission();
+
+    return () => {
+      disposed = true;
+      if (permissionStatus && permissionListener) {
+        permissionStatus.removeEventListener("change", permissionListener);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -50,21 +111,46 @@ export function HandTracker({ onFrame }: Props) {
   const activateCamera = async () => {
     if (status === "loading" || status === "ready") return;
 
+    if (!window.isSecureContext) {
+      setStatus("error");
+      setMessage("A câmera só funciona em uma conexão segura (HTTPS).");
+      return;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setStatus("error");
+      setMessage("Este navegador não oferece acesso à câmera nesta página.");
+      return;
+    }
+
     setStatus("loading");
     setMessage("Aguardando sua permissão para usar a câmera…");
 
     try {
-      if (!navigator.mediaDevices?.getUserMedia) {
-        throw new Error("Seu navegador não permite usar a câmera nesta página.");
-      }
-
       streamRef.current?.getTracks().forEach((track) => track.stop());
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
-      });
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            facingMode: { ideal: "user" },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+        });
+      } catch (error) {
+        const cameraError = error as DOMException;
+        if (cameraError?.name !== "OverconstrainedError") throw error;
+
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: true,
+        });
+      }
+
       streamRef.current = stream;
+      setPermission("granted");
 
       const video = videoRef.current;
       if (!video) throw new Error("Não foi possível preparar a câmera.");
@@ -73,7 +159,9 @@ export function HandTracker({ onFrame }: Props) {
       await video.play();
       setMessage("Câmera autorizada. Preparando o reconhecimento da mão…");
 
-      const { FilesetResolver, HandLandmarker } = await import("@mediapipe/tasks-vision");
+      const { FilesetResolver, HandLandmarker } = await import(
+        "@mediapipe/tasks-vision"
+      );
       const vision = await FilesetResolver.forVisionTasks(WASM);
 
       try {
@@ -107,7 +195,11 @@ export function HandTracker({ onFrame }: Props) {
         if (!landmarker || !currentVideo || !canvas) return;
 
         const now = performance.now();
-        if (currentVideo.readyState >= 2 && currentVideo.currentTime !== lastVideoTimeRef.current) {
+
+        if (
+          currentVideo.readyState >= 2 &&
+          currentVideo.currentTime !== lastVideoTimeRef.current
+        ) {
           lastVideoTimeRef.current = currentVideo.currentTime;
           const result = landmarker.detectForVideo(currentVideo, now);
           const raw = result.landmarks?.[0] as HandPoint[] | undefined;
@@ -139,16 +231,43 @@ export function HandTracker({ onFrame }: Props) {
       streamRef.current = null;
 
       const cameraError = error as DOMException;
-      if (cameraError?.name === "NotAllowedError") {
-        setMessage("Permissão da câmera negada. Autorize a câmera nas configurações do navegador e tente novamente.");
+
+      if (
+        cameraError?.name === "NotAllowedError" ||
+        cameraError?.name === "SecurityError"
+      ) {
+        setPermission("denied");
+        setMessage(
+          "A câmera está bloqueada para este site. Abra as permissões do site no navegador, permita a câmera e toque em “Tentar novamente”.",
+        );
       } else if (cameraError?.name === "NotFoundError") {
         setMessage("Nenhuma câmera foi encontrada neste celular.");
+      } else if (cameraError?.name === "NotReadableError") {
+        setMessage(
+          "A câmera está sendo usada por outro aplicativo. Feche-o e tente novamente.",
+        );
       } else {
-        setMessage(error instanceof Error ? error.message : "Não foi possível abrir a câmera.");
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : "Não foi possível abrir a câmera.",
+        );
       }
+
       setStatus("error");
     }
   };
+
+  const permissionText =
+    permission === "denied"
+      ? "Câmera bloqueada"
+      : permission === "granted"
+        ? "Câmera permitida"
+        : permission === "prompt"
+          ? "Permissão ainda não solicitada"
+          : permission === "checking"
+            ? "Verificando permissão…"
+            : "Permissão será verificada ao ativar";
 
   return (
     <div className="camera-stage" aria-label="Câmera com desenho da mão">
@@ -157,19 +276,47 @@ export function HandTracker({ onFrame }: Props) {
 
       {status !== "ready" && (
         <div className="camera-permission">
-          <span className="camera-permission-icon" aria-hidden="true">📷</span>
-          <h3>{status === "error" ? "Não foi possível abrir a câmera" : "Ative a câmera do celular"}</h3>
+          <span className="camera-permission-icon" aria-hidden="true">
+            📷
+          </span>
+          <h3>
+            {status === "error"
+              ? "A câmera precisa da sua atenção"
+              : "Ative a câmera do celular"}
+          </h3>
           <p>{message}</p>
-          <button className="button" type="button" onClick={activateCamera} disabled={status === "loading"}>
-            {status === "loading" ? "Aguardando permissão…" : status === "error" ? "Tentar novamente" : "Ativar câmera"}
+          <span className={`permission-badge permission-${permission}`}>
+            {permissionText}
+          </span>
+          <button
+            className="button camera-action"
+            type="button"
+            onClick={activateCamera}
+            disabled={status === "loading"}
+          >
+            {status === "loading"
+              ? "Aguardando permissão…"
+              : status === "error"
+                ? "Tentar novamente"
+                : "Ativar câmera"}
           </button>
+          {permission === "denied" && (
+            <small className="permission-help">
+              No Chrome do celular: toque no ícone ao lado do endereço do site →
+              Permissões → Câmera → Permitir.
+            </small>
+          )}
         </div>
       )}
 
       <div className="camera-hud">
-        {status === "ready" && <span className="metric">{gestureName(gesture)}</span>}
+        {status === "ready" && (
+          <span className="metric">{gestureName(gesture)}</span>
+        )}
         {status === "ready" && <span className="metric">{message}</span>}
-        {status === "ready" && <span className="metric subtle-metric">{fps} quadros/s</span>}
+        {status === "ready" && (
+          <span className="metric subtle-metric">{fps} quadros/s</span>
+        )}
       </div>
     </div>
   );
