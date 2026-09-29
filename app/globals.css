@@ -892,3 +892,13 @@ h1, h2, h3, p { margin-top: 0; }
 .metric-button:hover {
   border-color: var(--danger);
 }
+
+.hand-live {
+  color: #55ff79;
+  border-color: rgba(0, 255, 59, .55);
+}
+
+.no-hand {
+  color: #ffd37a;
+  border-color: rgba(255, 211, 122, .4);
+}
