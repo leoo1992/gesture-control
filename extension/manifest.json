@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Gesture Control Bridge",
+  "version": "0.1.0",
+  "description": "Recebe comandos do Gesture Control e controla a aba ativa do navegador.",
+  "permissions": ["tabs", "scripting"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ]
+}
