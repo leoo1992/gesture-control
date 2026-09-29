@@ -876,3 +876,19 @@ h1, h2, h3, p { margin-top: 0; }
 @media (prefers-reduced-motion: reduce) {
   * { scroll-behavior: auto !important; transition: none !important; }
 }
+
+.camera-live {
+  color: var(--accent-2);
+  border-color: color-mix(in srgb, var(--accent-2) 45%, rgba(255,255,255,.12));
+}
+
+.metric-button {
+  appearance: none;
+  cursor: pointer;
+  color: var(--danger);
+  text-align: left;
+}
+
+.metric-button:hover {
+  border-color: var(--danger);
+}
