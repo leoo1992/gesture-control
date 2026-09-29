@@ -13,6 +13,13 @@ type Props = {
 const MODEL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
 const WASM = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm";
 
+const gestureName = (gesture: string) => ({
+  POINTER: "Apontando",
+  PINCH: "Clique",
+  OPEN_PALM: "Mão aberta",
+  "SEM MÃO": "Mostre sua mão",
+}[gesture] ?? gesture);
+
 export function HandTracker({ onFrame }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -22,7 +29,7 @@ export function HandTracker({ onFrame }: Props) {
   const lastVideoTimeRef = useRef(-1);
   const fpsRef = useRef({ at: 0, frames: 0 });
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
-  const [message, setMessage] = useState("Inicializando câmera…");
+  const [message, setMessage] = useState("Abrindo a câmera…");
   const [gesture, setGesture] = useState("SEM MÃO");
   const [fps, setFps] = useState(0);
 
@@ -71,7 +78,7 @@ export function HandTracker({ onFrame }: Props) {
     async function start() {
       try {
         if (!navigator.mediaDevices?.getUserMedia) {
-          throw new Error("Este navegador não oferece acesso à câmera.");
+          throw new Error("Este navegador não conseguiu abrir a câmera.");
         }
 
         const { FilesetResolver, HandLandmarker } = await import("@mediapipe/tasks-vision");
@@ -109,11 +116,11 @@ export function HandTracker({ onFrame }: Props) {
         video.srcObject = stream;
         await video.play();
         setStatus("ready");
-        setMessage("Câmera ativa");
+        setMessage("Câmera pronta");
         tick();
       } catch (error) {
         setStatus("error");
-        setMessage(error instanceof Error ? error.message : "Não foi possível inicializar a câmera.");
+        setMessage(error instanceof Error ? error.message : "Não foi possível abrir a câmera.");
       }
     }
 
@@ -128,13 +135,13 @@ export function HandTracker({ onFrame }: Props) {
   }, []);
 
   return (
-    <div className="camera-stage" aria-label="Câmera com esqueleto da mão">
+    <div className="camera-stage" aria-label="Câmera com desenho da mão">
       <video ref={videoRef} playsInline muted />
       <canvas ref={canvasRef} />
       <div className="camera-hud">
-        <span className="metric">{status === "error" ? "ERRO" : gesture}</span>
-        <span className="metric">{fps} FPS</span>
+        <span className="metric">{status === "error" ? "Câmera indisponível" : gestureName(gesture)}</span>
         <span className="metric">{message}</span>
+        {status === "ready" && <span className="metric subtle-metric">{fps} quadros/s</span>}
       </div>
     </div>
   );
