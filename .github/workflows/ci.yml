@@ -5,6 +5,9 @@ on:
     branches: [main, gesture-control]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -14,9 +17,16 @@ jobs:
         with:
           node-version: 22
       - run: npm install
-      - run: npm run lint
-      - run: npm run test
-      - run: npm run build
+      - name: Type checking
+        run: npx tsc --noEmit
+      - name: Lint
+        run: npm run lint
+      - name: Tests
+        run: npm run test
+      - name: Repository tests + coverage 80%
+        run: node --test --experimental-test-coverage --test-coverage-lines=80 tests/repository-quality.test.mjs
+      - name: Build
+        run: npm run build
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
