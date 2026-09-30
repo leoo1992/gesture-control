@@ -1,0 +1,60 @@
+name: Windows Companion Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "windows-agent/**"
+      - "extension/**"
+      - ".github/workflows/windows-release.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Publish single-file Windows app
+        shell: pwsh
+        run: |
+          dotnet publish windows-agent/GestureControl.Windows.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:PublishTrimmed=false `
+            -p:DebugType=None `
+            -p:DebugSymbols=false `
+            -o dist/windows
+
+          if (-not (Test-Path "dist/windows/GestureControl.Windows.exe")) {
+            throw "GestureControl.Windows.exe was not produced."
+          }
+
+      - name: Publish stable download
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $asset = "dist/windows/GestureControl.Windows.exe"
+          $tag = "windows-latest"
+
+          gh release view $tag 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag $asset --clobber
+            gh release edit $tag `
+              --title "Gesture Control para Windows" `
+              --notes "Aplicativo nativo para controle global do Windows. Baixe GestureControl.Windows.exe, execute uma vez para instalar e volte ao Gesture Control."
+          } else {
+            gh release create $tag $asset `
+              --target "${{ github.sha }}" `
+              --title "Gesture Control para Windows" `
+              --notes "Aplicativo nativo para controle global do Windows. Baixe GestureControl.Windows.exe, execute uma vez para instalar e volte ao Gesture Control."
+          }

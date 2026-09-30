@@ -911,3 +911,158 @@ h1, h2, h3, p { margin-top: 0; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.desktop-steps-four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.native-summary,
+.ready-inline,
+.overlay-note,
+.global-ready-card,
+.global-safety {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  padding: 8px 9px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+
+.native-summary {
+  margin-top: 9px;
+}
+
+.native-summary > span,
+.ready-inline > span,
+.overlay-note > span {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 18px;
+}
+
+.native-summary strong,
+.native-summary small,
+.ready-inline strong,
+.ready-inline small,
+.overlay-note strong,
+.overlay-note small,
+.global-ready-card strong,
+.global-ready-card small {
+  display: block;
+}
+
+.native-summary strong,
+.ready-inline strong,
+.overlay-note strong,
+.global-ready-card strong {
+  font-size: 10px;
+}
+
+.native-summary small,
+.ready-inline small,
+.overlay-note small,
+.global-ready-card small {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 8px;
+  line-height: 1.25;
+}
+
+.native-summary-ready {
+  border-color: color-mix(in srgb, var(--accent-2) 55%, var(--line));
+  background: #07151a;
+}
+
+.native-summary-ready > span {
+  color: var(--accent-2);
+}
+
+.overlay-note {
+  padding-block: 6px;
+}
+
+.global-panel {
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+}
+
+.windows-download {
+  width: 100%;
+  min-height: 40px;
+  text-align: center;
+}
+
+.windows-install {
+  grid-template-rows: repeat(4, minmax(0, 1fr));
+}
+
+.global-ready-card {
+  align-self: center;
+  border-color: color-mix(in srgb, var(--accent-2) 55%, var(--line));
+  background: #07151a;
+}
+
+.global-ready-icon {
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: #041016;
+  background: var(--accent-2);
+  font-size: 21px;
+  font-weight: 900;
+}
+
+.global-safety {
+  justify-content: space-between;
+  padding-block: 6px;
+}
+
+.global-safety strong {
+  font-size: 9px;
+}
+
+.global-safety span {
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.global-safety small {
+  color: var(--muted);
+  font-size: 8px;
+  line-height: 1.2;
+}
+
+@media (max-height: 700px) {
+  .native-summary,
+  .overlay-note,
+  .ready-inline,
+  .global-ready-card,
+  .global-safety {
+    padding-block: 5px;
+  }
+
+  .native-summary small,
+  .overlay-note small,
+  .ready-inline small,
+  .global-ready-card small,
+  .global-safety small {
+    display: none;
+  }
+}
+
+@media (max-width: 1050px) and (min-width: 761px) {
+  .global-safety small {
+    display: none;
+  }
+
+  .windows-download {
+    font-size: 9px;
+  }
+}

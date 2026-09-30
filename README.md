@@ -1,67 +1,106 @@
-# Gesture Control — Mobile → PC
+# Gesture Control — Mobile → Windows
 
-Controle o navegador do computador usando movimentos da mão capturados pela câmera do celular. A aplicação desenha os **21 landmarks da mão** no celular e também transmite somente esses pontos ao PC para renderizar um esqueleto remoto — o vídeo da câmera não é enviado.
+Controle o navegador e o próprio Windows usando movimentos da mão capturados pela câmera do celular.
+
+A aplicação possui dois modos:
+
+- **Modo navegador:** funciona apenas em páginas comuns do Chrome/Edge.
+- **Modo global do Windows:** usa um aplicativo nativo para mover o cursor real, clicar, rolar, executar atalhos e desenhar o esqueleto da mão sobre todas as janelas.
 
 ## Arquitetura
 
 ```text
-Celular (Next.js + MediaPipe)
-        │
-        │  landmarks + comandos JSON
-        ▼
-WebRTC DataChannel / PeerJS
-        │
-        ▼
-PC Receiver (Next.js)
-        │ window.postMessage
-        ▼
-Chrome/Edge Extension
-        │
-        ├─ cursor virtual / clique / scroll
-        └─ voltar / avançar + HUD do esqueleto
+Celular
+  │
+  │ câmera + MediaPipe Hands
+  │ landmarks + comandos
+  ▼
+WebRTC / PeerJS
+  ▼
+Página do PC
+  │
+  ▼
+Extensão Chrome/Edge
+  │
+  ├─ fallback: controla a página atual
+  │
+  └─ Native Messaging
+       ▼
+GestureControl.Windows.exe
+       ├─ cursor real do Windows
+       ├─ clique / scroll / atalhos
+       └─ overlay transparente da mão
 ```
 
-O PeerJS usa o PeerServer Cloud para sinalização por padrão; depois do handshake os dados seguem pelo canal WebRTC entre os navegadores. Para produção de alto tráfego, troque o PeerServer Cloud por um PeerServer próprio e configure TURN.
+O vídeo da câmera permanece no celular. São transmitidos apenas landmarks e comandos.
 
-## Gestos do MVP
+## Gestos
 
 | Gesto | Ação |
 |---|---|
-| Indicador | Move o cursor virtual |
+| Indicador | Move o cursor |
 | Pinça polegar + indicador | Clique |
 | Mão aberta + movimento vertical | Scroll |
 | Mão aberta + swipe lateral | Voltar / avançar |
 
-A pinça precisa persistir por múltiplos frames e possui cooldown para reduzir cliques acidentais.
+## Controle global do Windows
 
-## Executar
+O aplicativo nativo é um host de **Chrome/Edge Native Messaging**.
+
+Ele é executado automaticamente pela extensão e usa APIs nativas do Windows para:
+
+- mover o cursor real;
+- clique esquerdo;
+- scroll;
+- atalhos de navegação;
+- overlay click-through sempre no topo;
+- desenho da mão com linhas verdes e pontos vermelhos.
+
+### Instalação
+
+A própria tela **Estou no computador** orienta o processo:
+
+1. instale/reinstale a extensão atual;
+2. baixe `GestureControl.Windows.exe`;
+3. execute o arquivo uma vez;
+4. volte ao navegador;
+5. aguarde o status **Controle global ativo**.
+
+O executável se copia para:
+
+```text
+%LOCALAPPDATA%\GestureControl\GestureControl.Windows.exe
+```
+
+e registra o host Native Messaging apenas para o usuário atual.
+
+### Atalho de segurança
+
+```text
+Ctrl + Alt + G
+```
+
+Pausa ou retoma imediatamente a injeção de mouse/teclado. O overlay informa quando o controle está pausado.
+
+## Extensão Chrome/Edge
+
+A versão 0.2.0 possui um ID estável para permitir a conexão segura com o host nativo.
+
+Se uma versão anterior da extensão já estiver instalada:
+
+1. remova a extensão antiga;
+2. baixe novamente o ZIP pelo Gesture Control;
+3. abra `chrome://extensions/` ou `edge://extensions/`;
+4. ative **Modo do desenvolvedor**;
+5. use **Carregar sem compactação**;
+6. selecione a pasta `gesture-control-extension`.
+
+## Executar o site
 
 ```bash
 npm install
 npm run dev
 ```
-
-Abra no PC `http://localhost:3000/desktop` e no celular use a URL HTTPS do deploy. A câmera é ativada por uma ação explícita do usuário e a aplicação mostra o estado da permissão antes e depois da solicitação.
-
-## Extensão Chrome/Edge
-
-1. Baixe o ZIP pelo próprio site.
-2. Extraia o ZIP; ele cria a pasta `gesture-control-extension`.
-3. Abra `chrome://extensions/` ou `edge://extensions/`.
-4. Ative **Modo do desenvolvedor**.
-5. Clique em **Carregar sem compactação**.
-6. Selecione a pasta `gesture-control-extension`.
-7. Recarregue a tela do computador no Gesture Control.
-
-A extensão não atua em páginas internas protegidas do navegador, como `chrome://` e a Chrome Web Store.
-
-## Backend Python
-
-O FastAPI em `api/index.py` fornece health check e uma política de validação de gestos. O caminho crítico de baixa latência permanece no navegador; frames de vídeo não passam pelo backend.
-
-- `GET /api`
-- `GET /api/health`
-- `POST /api/validate-gesture`
 
 ## Testes e qualidade
 
@@ -71,41 +110,22 @@ npm run test
 npm run build
 python -m compileall api
 docker build -t gesture-control .
+dotnet build windows-agent/GestureControl.Windows.csproj -c Release
 ```
 
-O GitHub Actions valida lint, testes, build Next.js, backend Python e a imagem Docker.
-
-### Critérios do GitHub Explorer
-
-O repositório contém todos os sinais universais avaliados pelo projeto `github-explorer`:
-
-- README/documentação;
-- GitHub Actions;
-- testes automatizados;
-- ESLint;
-- Dockerfile;
-- `.env.example`;
-- licença MIT.
-
-TypeScript também está presente, embora seja informativo e não altere o score do GitHub Explorer.
-
-## Docker
-
-```bash
-docker build -t gesture-control .
-docker run --rm -p 3000:3000 gesture-control
-```
-
-## Deploy
-
-O frontend Next.js e o FastAPI podem ser hospedados no mesmo projeto Vercel. O rastreamento MediaPipe Hands roda no dispositivo do usuário. A extensão é carregada separadamente no navegador desktop.
+O CI valida frontend, testes, Docker, Python e o aplicativo Windows.
 
 ## Privacidade
 
 - vídeo permanece no celular;
 - nenhuma captura é armazenada;
-- são enviados apenas landmarks normalizados e comandos;
-- sessão de pareamento é efêmera.
+- somente landmarks/comandos atravessam a conexão;
+- o host Windows é local;
+- o overlay é visual e não captura a tela.
+
+## Limitações
+
+O controle global usa APIs de entrada do Windows e funciona sobre aplicativos normais. Janelas elevadas como administrador podem exigir que o aplicativo de controle esteja no mesmo nível de privilégio. O executável publicado automaticamente não possui assinatura comercial de código, então o Windows SmartScreen pode exibir um aviso na primeira execução.
 
 ## Licença
 

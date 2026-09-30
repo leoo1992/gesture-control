@@ -1,9 +1,10 @@
 {
   "manifest_version": 3,
   "name": "Gesture Control Bridge",
-  "version": "0.1.0",
-  "description": "Recebe comandos do Gesture Control e controla a aba ativa do navegador.",
-  "permissions": ["tabs", "scripting"],
+  "version": "0.2.0",
+  "description": "Conecta o Gesture Control ao navegador e ao controle global do Windows.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAjJ0Y7xnYTNcZk512UeXTq8KhyZc4Zo05+DdJ0IeZY6AdfM3QvQrJxmFfX/T5eISbBY0DyoK+1X4ouYMqk0xj/sx/miMAexGyqTrqXAVYjehvuy/XWJM6mTMAhA7HpW3NYHxYmhq8ctYUeRAhrKzJyToyb2WD6mGv6/N9nyqipnim9Qft7oFeLYR3tNJYL9oER0N+sCkyChaUcbsEzsV78RPy379teiPtbcZKjqfKJkckQm982/9pE2YV+PKD2qFFTZWe2K+T+LfbxEpKGoxBRYBwKTWvowEniEYC7Q09nBykX7hRQV1GALNPCTLiOt4TynCKxAReUENOcH99GVKV4wIDAQAB",
+  "permissions": ["tabs", "scripting", "nativeMessaging"],
   "host_permissions": ["<all_urls>"],
   "background": { "service_worker": "background.js" },
   "content_scripts": [
