@@ -27,7 +27,7 @@ jobs:
         run: node --test --experimental-test-coverage --test-coverage-lines=80 tests/repository-quality.test.mjs
       - name: Build
         run: npm run build
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: Install Python type checker
